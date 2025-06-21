@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ocean Topography Explorer - S6E3c</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #002b36, #073642);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .standard-info {
+            font-style: italic;
+            color: #FFD700;
+            margin-bottom: 20px;
+            background: rgba(255, 215, 0, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #FFD700;
+        }
+
+        .instructions {
+            background: rgba(255, 215, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .map-section, .info-panel, .profile-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        #map {
+            width: 100%;
+            height: 500px;
+            background: linear-gradient(to bottom, #87CEEB 0%, #4682B4 100%);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            position: relative;
+            cursor: crosshair;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .world-map-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            /* Using the requested SVG image as a background */
+            background-image: url('https://upload.wikimedia.org/wikipedia/commons/1/14/World_map_ocean_locator-en.svg');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            pointer-events: none;
+        }
+
+        .ocean-clickable {
+            position: absolute;
+            background: rgba(255, 215, 0, 0.1);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            color: transparent;
+            backdrop-filter: blur(1px);
+        }
+
+        .ocean-clickable:hover, .ocean-clickable.selected {
+            background: rgba(255, 215, 0, 0.7);
+            border-color: #FFD700;
+            color: #003366;
+            text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.9);
+            transform: scale(1.05);
+        }
+
+        /* Positions fine-tuned for the new SVG map. May need slight adjustments. */
+        .pacific-left  { top: 25%; left: 5%; width: 25%; height: 50%; }
+        .pacific-right { top: 25%; right: 2%; width: 15%; height: 50%; }
+        .atlantic      { top: 20%; left: 33%; width: 20%; height: 60%; }
+        .indian        { top: 55%; left: 55%; width: 20%; height: 30%; }
+        .arctic        { top: 2%; left: 10%; width: 80%; height: 15%; }
+        .southern      { bottom: 2%; left: 10%; width: 80%; height: 15%; }
+
+        .click-point {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: #FFD700;
+            border: 3px solid white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+        }
+        
+        #info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-family: monospace;
+            line-height: 1.6;
+            min-height: 60px;
+        }
+
+        .control-section h3 {
+            color: #FFD700;
+            margin-top: 0;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #FFD700;
+            padding-bottom: 5px;
+        }
+        
+        .reset-btn, .export-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+            font-size: 1em;
+        }
+
+        .reset-btn { background: linear-gradient(45deg, #FF6B6B, #FF8E53); }
+        .export-btn { background: linear-gradient(45deg, #4CAF50, #45a049); }
+        .reset-btn:hover, .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .ocean-data {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .data-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .data-title {
+            color: #FFD700;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .data-value {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .profile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .profile-header h3, .profile-header span { color: #FFD700; }
+
+        #profileCanvas {
+            width: 100%;
+            height: 300px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .depth-legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .legend-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .depth-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #FFD700;
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .main-content { grid-template-columns: 1fr; }
+            .container { padding: 10px; }
+            h1 { font-size: 2em; }
+            #map { height: 300px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🌊 Ocean Topography Explorer</h1>
+        <div class="standard-info">
+            Georgia Standard S6E3c: Ask questions to identify and communicate, using graphs and maps, the composition, location, and subsurface topography of the world's oceans.
+        </div>
+        <div class="instructions">
+            <strong>📝 Instructions:</strong> Click on an ocean area on the map to see its standard bathymetric profile, or click two points anywhere on the map to generate a custom cross-section.
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="map-section">
+            <h3>🗺️ Interactive World Ocean Map</h3>
+            <div id="map">
+                <div class="world-map-overlay"></div>
+                <div class="ocean-clickable pacific-left" data-ocean="pacific">Pacific Ocean</div>
+                <div class="ocean-clickable pacific-right" data-ocean="pacific">Pacific Ocean</div>
+                <div class="ocean-clickable atlantic" data-ocean="atlantic">Atlantic Ocean</div>
+                <div class="ocean-clickable indian" data-ocean="indian">Indian Ocean</div>
+                <div class="ocean-clickable arctic" data-ocean="arctic">Arctic Ocean</div>
+                <div class="ocean-clickable southern" data-ocean="southern">Southern Ocean</div>
+            </div>
+            <div id="info">Hover over and click ocean labels to explore bathymetric profiles...</div>
+        </div>
+
+        <div class="info-panel">
+            <div class="control-section">
+                <h3>⚙️ Controls</h3>
+                <button class="reset-btn" onclick="resetMap()">Reset Map</button>
+                <button class="export-btn" onclick="exportProfile()">Export Profile</button>
+            </div>
+            <div class="control-section">
+                <h3>📊 Ocean Data</h3>
+                <div class="ocean-data" id="oceanData" style="display: none;">
+                    <div class="data-card">
+                        <div class="data-title">Ocean Region</div>
+                        <div class="data-value" id="regionName">-</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-title">Max Depth</div>
+                        <div class="data-value" id="maxDepth">-</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-title">Avg Depth</div>
+                        <div class="data-value" id="avgDepth">-</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-title">Profile Distance</div>
+                        <div class="data-value" id="profileDistance">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="profile-section">
+        <div class="profile-header">
+            <h3>📈 Bathymetric Cross-Section Profile</h3>
+            <span id="profileTitle"></span>
+        </div>
+        <canvas id="profileCanvas"></canvas>
+        <div class="depth-legend" id="depthLegend" style="display: none;">
+            <div class="legend-item"><span class="depth-value">> -200m</span><div>Continental Shelf</div></div>
+            <div class="legend-item"><span class="depth-value">> -4000m</span><div>Continental Slope</div></div>
+            <div class="legend-item"><span class="depth-value">~ -4000m</span><div>Abyssal Plain</div></div>
+            <div class="legend-item"><span class="depth-value">< -6000m</span><div>Oceanic Trench</div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const map = document.getElementById('map');
+    const info = document.getElementById('info');
+    const canvas = document.getElementById('profileCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let points = [];
+    let currentProfileData = null;
+
+    // Corrected data structure
+    const profiles = {
+        pacific: {
+            name: 'Pacific Ocean',
+            avgDepth: 4280,
+            depths: [0, -1200, -3800, -6200, -10994, -8400, -4200, -2100, -800, 0],
+            features: ['Continental Shelf', 'Continental Slope', 'Abyssal Plain', 'Mariana Trench', 'Pacific Ridge', 'Abyssal Plain', 'Seamount', 'Continental Slope', 'Continental Shelf']
+        },
+        atlantic: {
+            name: 'Atlantic Ocean',
+            avgDepth: 3646,
+            depths: [0, -800, -2500, -4000, -2100, -4800, -3200, -1500, -400, 0],
+            features: ['Continental Shelf', 'Continental Slope', 'Abyssal Plain', 'Mid-Atlantic Ridge', 'Abyssal Plain', 'Continental Slope', 'Continental Shelf']
+        },
+        indian: {
+            name: 'Indian Ocean',
+            avgDepth: 3741,
+            depths: [0, -1000, -3500, -6000, -7725, -5200, -3800, -1800, -600, 0],
+            features: ['Continental Shelf', 'Continental Slope', 'Abyssal Plain', 'Java Trench', 'Indian Ridge', 'Abyssal Plain', 'Continental Slope', 'Continental Shelf']
+        },
+        arctic: {
+            name: 'Arctic Ocean',
+            avgDepth: 1038,
+            depths: [0, -200, -800, -1500, -3200, -5449, -2800, -1200, -300, 0],
+            features: ['Continental Shelf', 'Shallow Basin', 'Lomonosov Ridge', 'Deep Basin', 'Molloy Deep', 'Continental Slope', 'Continental Shelf']
+        },
+        southern: {
+            name: 'Southern Ocean',
+            avgDepth: 3270,
+            depths: [0, -600, -2800, -4200, -6800, -7236, -5100, -2400, -800, 0],
+            features: ['Continental Shelf', 'Continental Slope', 'Circumpolar Basin', 'S. Sandwich Trench', 'Abyssal Plain', 'Continental Slope', 'Continental Shelf']
+        }
+    };
+
+    function getOceanRegion(lat, lon) {
+        lat = parseFloat(lat);
+        lon = parseFloat(lon);
+        if (lat > 66) return 'arctic';
+        if (lat < -60) return 'southern';
+        if (lon > -70 && lon < 20 && lat > -35 && lat < 60) return 'atlantic';
+        if (lon > 20 && lon < 100 && lat > -45 && lat < 30) return 'indian';
+        return 'pacific';
+    }
+
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Radius of the Earth in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return (R * c).toFixed(1);
+    }
+
+    function drawProfile(oceanData, startCoords, endCoords) {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = 300;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const depths = oceanData.depths;
+        const w = canvas.width / (depths.length - 1);
+        const maxAbsDepth = Math.max(...depths.map(d => Math.abs(d)));
+        
+        // Background Gradient
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, '#073642');
+        gradient.addColorStop(1, '#002b36');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const profilePoints = depths.map((d, i) => {
+            const x = i * w;
+            const y = canvas.height - ((Math.abs(d) / maxAbsDepth) * (canvas.height - 50)) - 25;
+            return { x, y, depth: d };
+        });
+
+        // Fill under the profile
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height);
+        profilePoints.forEach(point => ctx.lineTo(point.x, point.y));
+        ctx.lineTo(canvas.width, canvas.height);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255, 215, 0, 0.2)';
+        ctx.fill();
+
+        // Draw the profile line
+        ctx.beginPath();
+        profilePoints.forEach((point, i) => {
+            if (i === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+        });
+        ctx.strokeStyle = '#FFD700';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Draw points and labels
+        ctx.fillStyle = '#FFD700';
+        ctx.font = '10px Arial';
+        profilePoints.forEach((point, i) => {
+            if (i > 0 && i < profilePoints.length -1 && (i % 2 === 1 || Math.abs(point.depth) > 5000)) {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+                ctx.fill();
+
+                ctx.fillStyle = 'white';
+                ctx.fillText(`${point.depth}m`, point.x - 15, point.y - 10);
+                ctx.fillStyle = '#FFD700';
+            }
+        });
+        
+        currentProfileData = {
+            oceanData, startCoords, endCoords,
+            distance: calculateDistance(startCoords.lat, startCoords.lon, endCoords.lat, endCoords.lon)
+        };
+        updateDataDisplay();
+    }
+
+    function updateDataDisplay() {
+        if (!currentProfileData) return;
+        const data = currentProfileData;
+        const depths = data.oceanData.depths;
+
+        document.getElementById('regionName').textContent = data.oceanData.name;
+        document.getElementById('maxDepth').textContent = Math.min(...depths) + 'm';
+        document.getElementById('avgDepth').textContent = data.oceanData.avgDepth + 'm';
+        document.getElementById('profileDistance').textContent = data.distance + ' km';
+        
+        document.getElementById('oceanData').style.display = 'grid';
+        document.getElementById('depthLegend').style.display = 'grid';
+        document.getElementById('profileTitle').textContent = `${data.oceanData.name} Cross-Section`;
+    }
+    
+    function getSampleCoordinates(oceanType) {
+        const coordinates = {
+            pacific: { start: { lat: 35, lon: -140 }, end: { lat: -10, lon: -120 } },
+            atlantic: { start: { lat: 45, lon: -30 }, end: { lat: -20, lon: -15 } },
+            indian: { start: { lat: 10, lon: 60 }, end: { lat: -30, lon: 90 } },
+            arctic: { start: { lat: 80, lon: -90 }, end: { lat: 75, lon: 90 } },
+            southern: { start: { lat: -65, lon: 0 }, end: { lat: -70, lon: 180 } }
+        };
+        return coordinates[oceanType];
+    }
+    
+    map.addEventListener('click', e => {
+        // Handle clicks on predefined ocean areas
+        if (e.target.classList.contains('ocean-clickable')) {
+            resetMap(false); // Reset map but keep selection style
+            const oceanType = e.target.dataset.ocean;
+            const oceanData = profiles[oceanType];
+
+            document.querySelectorAll('.ocean-clickable').forEach(r => r.classList.remove('selected'));
+            document.querySelectorAll(`[data-ocean="${oceanType}"]`).forEach(r => r.classList.add('selected'));
+            
+            const sampleCoords = getSampleCoordinates(oceanType);
+            info.innerHTML = `<strong>Selected Ocean:</strong> ${oceanData.name}<br>
+                              <strong>Showing Sample Profile for this region.</strong>`;
+            
+            drawProfile(oceanData, sampleCoords.start, sampleCoords.end);
+            return;
+        }
+
+        // Handle custom point clicks
+        if (points.length === 2) {
+            resetMap();
+        }
+
+        const rect = map.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // Simple equirectangular projection mapping
+        const lon = ((x / rect.width) * 360 - 180).toFixed(2);
+        const lat = ((1 - y / rect.height) * 180 - 90).toFixed(2);
+
+        const marker = document.createElement('div');
+        marker.className = 'click-point';
+        marker.style.left = x + 'px';
+        marker.style.top = y + 'px';
+        map.appendChild(marker);
+        points.push({ marker, coords: { lat, lon } });
+
+        if (points.length === 1) {
+            info.innerHTML = `<strong>Point 1:</strong> Lat ${lat}°, Lon ${lon}°<br>
+                              <em>Click a second point to generate profile...</em>`;
+        } else if (points.length === 2) {
+            const p1 = points[0].coords;
+            const p2 = points[1].coords;
+            const region = getOceanRegion(p2.lat, p2.lon);
+            const oceanData = profiles[region];
+
+            info.innerHTML = `<strong>Point 1:</strong> Lat ${p1.lat}°, Lon ${p1.lon}°<br>
+                              <strong>Point 2:</strong> Lat ${p2.lat}°, Lon ${p2.lon}°<br>
+                              <strong>Ocean Region:</strong> ${oceanData.name}<br>
+                              <strong>Profile Distance:</strong> ${calculateDistance(p1.lat, p1.lon, p2.lat, p2.lon)} km`;
+            
+            drawProfile(oceanData, p1, p2);
+        }
+    });
+
+    function resetMap(fullReset = true) {
+        points.forEach(point => point.marker.remove());
+        points = [];
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        if (fullReset) {
+            document.querySelectorAll('.ocean-clickable').forEach(r => r.classList.remove('selected'));
+        }
+
+        info.innerHTML = 'Hover over and click ocean labels to explore bathymetric profiles...';
+        document.getElementById('oceanData').style.display = 'none';
+        document.getElementById('depthLegend').style.display = 'none';
+        document.getElementById('profileTitle').textContent = '';
+        currentProfileData = null;
+        initializeCanvas();
+    }
+
+    function exportProfile() {
+        if (!currentProfileData) {
+            alert('Please generate a profile first by clicking on an ocean or two points on the map.');
+            return;
+        }
+        const exportData = {
+            oceanRegion: currentProfileData.oceanData.name,
+            startPoint: currentProfileData.startCoords,
+            endPoint: currentProfileData.endCoords,
+            distance: currentProfileData.distance + ' km',
+            depths: currentProfileData.oceanData.depths,
+            features: currentProfileData.oceanData.features,
+            maxDepth: Math.min(...currentProfileData.oceanData.depths) + 'm',
+            avgDepth: currentProfileData.oceanData.avgDepth + 'm',
+            timestamp: new Date().toISOString()
+        };
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ocean_profile_${currentProfileData.oceanData.name.toLowerCase().replace(' ', '_')}_${Date.now()}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+    
+    function initializeCanvas() {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = 300;
+        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, '#073642');
+        grad.addColorStop(1, '#002b36');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Click an ocean area or two points on the map to generate a profile', canvas.width / 2, canvas.height / 2);
+        ctx.textAlign = 'left'; // Reset for other functions
+    }
+    
+    // Initial setup
+    window.addEventListener('load', initializeCanvas);
+    window.addEventListener('resize', () => {
+        initializeCanvas();
+        if (currentProfileData) {
+            drawProfile(currentProfileData.oceanData, currentProfileData.startCoords, currentProfileData.endCoords);
+        }
+    });
+
+</script>
+</body>
+</html>
